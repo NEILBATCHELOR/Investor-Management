@@ -1,13 +1,13 @@
 import React from "react";
-import { Badge } from "../ui/badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../ui/tooltip";
+} from "@/components/ui/tooltip";
 import { CheckCircle2, AlertCircle, Clock, XCircle } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { getKYCStatus, type KYCStatus } from "@/lib/utils/kyc";
 
 interface KYCStatusCellProps {
@@ -75,7 +75,7 @@ const KYCStatusCell = ({
   lastUpdated = "Never",
 }: KYCStatusCellProps) => {
   const effectiveStatus = getKYCStatus(status, lastUpdated);
-  const config = statusConfig[effectiveStatus];
+  const config = statusConfig[effectiveStatus] || statusConfig.not_started;
   const Icon = config.icon;
 
   const needsScreening =

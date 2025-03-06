@@ -23,6 +23,7 @@ interface HeaderProps {
   onCreateGroupClick?: () => void;
   onBatchScreeningClick?: () => void;
   onViewCapTable?: () => void;
+  onAddInvestorClick?: () => void;
 }
 
 const Header = ({
@@ -32,6 +33,7 @@ const Header = ({
   onCreateGroupClick = () => {},
   onBatchScreeningClick = () => {},
   onViewCapTable = () => {},
+  onAddInvestorClick = () => {},
 }: HeaderProps) => {
   return (
     <div className="w-full h-[72px] bg-white border-b px-6 flex items-center justify-between">
@@ -42,6 +44,15 @@ const Header = ({
       </div>
 
       <div className="flex items-center gap-3">
+        <Button
+          onClick={onAddInvestorClick}
+          className="flex items-center gap-2"
+          variant="outline"
+        >
+          <Plus className="h-4 w-4" />
+          Add Investor
+        </Button>
+
         <Button
           onClick={onBatchScreeningClick}
           className="flex items-center gap-2"
@@ -79,10 +90,10 @@ const Header = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onExportInvestorList}>
-              Export Investor List
+              Export All Investors
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportCapTable}>
-              Export Cap Table
+              Export Selected Investors
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onViewCapTable}>

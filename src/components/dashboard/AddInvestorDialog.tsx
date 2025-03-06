@@ -30,30 +30,32 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import type { Investor } from "./InvestorGrid";
 
-interface EditDialogProps {
+interface AddInvestorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Partial<Investor>) => void;
-  selectedCount: number;
-  selectedInvestors?: Investor[];
+  onSave: (data: Omit<Investor, "id">) => void;
 }
 
 interface FormData {
-  name?: string;
-  email?: string;
-  type?: string;
-  walletAddress?: string;
-  kycStatus?: "approved" | "pending" | "failed" | "not_started" | "expired";
+  name: string;
+  email: string;
+  type: string;
+  walletAddress: string;
+  kycStatus: "approved" | "pending" | "failed" | "not_started" | "expired";
 }
 
-const EditDialog = ({
+const AddInvestorDialog = ({
   open = false,
   onOpenChange,
   onSave,
-  selectedCount,
-  selectedInvestors = [],
-}: EditDialogProps) => {
-  const [formData, setFormData] = React.useState<FormData>({});
+}: AddInvestorDialogProps) => {
+  const [formData, setFormData] = React.useState<FormData>({
+    name: "",
+    email: "",
+    type: "individual",
+    walletAddress: "",
+    kycStatus: "not_started",
+  });
   const [touched, setTouched] = React.useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [validationStatus, setValidationStatus] = React.useState<
@@ -61,26 +63,24 @@ const EditDialog = ({
   >("idle");
 
   React.useEffect(() => {
-    if (selectedInvestors.length === 1) {
-      const investor = selectedInvestors[0];
+    if (open) {
+      // Reset form when dialog opens
       setFormData({
-        name: investor.name,
-        email: investor.email,
-        type: investor.type,
-        walletAddress: investor.walletAddress,
-        kycStatus: investor.kycStatus,
+        name: "",
+        email: "",
+        type: "individual",
+        walletAddress: "",
+        kycStatus: "not_started",
       });
-    } else {
-      setFormData({});
+      setTouched({});
+      setValidationStatus("idle");
     }
-    setTouched({});
-    setValidationStatus("idle");
-  }, [selectedInvestors, open]);
+  }, [open]);
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const validateField = (name: string, value: string): string => {
-    if (!value) return "";
+    if (!value) return `${name} is required`;
 
     switch (name) {
       case "name":
@@ -93,7 +93,9 @@ const EditDialog = ({
         const validTypes = getAllInvestorTypes().map((t) => t.id);
         return validTypes.includes(value) ? "" : "Invalid investor type";
       case "walletAddress":
-        return isValidEthAddress(value) ? "" : "Invalid ETH wallet address";
+        return value && !isValidEthAddress(value)
+          ? "Invalid ETH wallet address"
+          : "";
       case "kycStatus":
         const validStatuses = [
           "approved",
@@ -112,14 +114,12 @@ const EditDialog = ({
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    // Only validate fields that have values
+    // Validate all fields
     Object.entries(formData).forEach(([field, value]) => {
-      if (value !== undefined && value !== "") {
-        const error = validateField(field, value);
-        if (error) {
-          newErrors[field] = error;
-          isValid = false;
-        }
+      const error = validateField(field, value);
+      if (error) {
+        newErrors[field] = error;
+        isValid = false;
       }
     });
 
@@ -146,12 +146,10 @@ const EditDialog = ({
   const handleSave = () => {
     setIsSubmitting(true);
 
-    // Mark all fields with values as touched for validation
+    // Mark all fields as touched for validation
     const newTouched: Record<string, boolean> = {};
-    Object.entries(formData).forEach(([field, value]) => {
-      if (value !== undefined && value !== "") {
-        newTouched[field] = true;
-      }
+    Object.keys(formData).forEach((field) => {
+      newTouched[field] = true;
     });
     setTouched(newTouched);
 
@@ -159,12 +157,9 @@ const EditDialog = ({
 
     if (isValid) {
       setValidationStatus("success");
-      const cleanData = Object.fromEntries(
-        Object.entries(formData).filter(
-          ([_, value]) => value !== undefined && value !== "",
-        ),
-      );
-      onSave(cleanData);
+      // Add current date as lastUpdated
+      const currentDate = new Date().toISOString().split("T")[0];
+      onSave({ ...formData, lastUpdated: currentDate });
       setIsSubmitting(false);
     } else {
       setValidationStatus("error");
@@ -176,9 +171,9 @@ const EditDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit {selectedCount} Investors</DialogTitle>
+          <DialogTitle>Add New Investor</DialogTitle>
           <DialogDescription>
-            Only filled fields will be updated across all selected investors.
+            Fill in the details to add a new investor to your database.
           </DialogDescription>
         </DialogHeader>
 
@@ -187,7 +182,7 @@ const EditDialog = ({
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Validation Error</AlertTitle>
             <AlertDescription>
-              Please correct the errors before saving changes.
+              Please correct the errors before saving.
             </AlertDescription>
           </Alert>
         )}
@@ -210,8 +205,8 @@ const EditDialog = ({
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"
-              placeholder="Enter name"
-              value={formData.name || ""}
+              placeholder="Enter investor name"
+              value={formData.name}
               onChange={(e) => handleChange("name", e.target.value)}
               onBlur={() => handleBlur("name")}
               className={touched.name && errors.name ? "border-red-500" : ""}
@@ -225,7 +220,7 @@ const EditDialog = ({
             <Input
               id="email"
               placeholder="Enter email"
-              value={formData.email || ""}
+              value={formData.email}
               onChange={(e) => handleChange("email", e.target.value)}
               onBlur={() => handleBlur("email")}
               className={touched.email && errors.email ? "border-red-500" : ""}
@@ -267,27 +262,23 @@ const EditDialog = ({
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="walletAddress">Wallet Address</Label>
-              {(formData.walletAddress === undefined ||
-                formData.walletAddress === "" ||
-                (touched.walletAddress && errors.walletAddress)) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Generate a valid Ethereum address with 0x prefix and 40 hex characters
-                    const randomAddr = `0x${Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
-                    handleChange("walletAddress", randomAddr);
-                  }}
-                >
-                  Generate
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Generate a valid Ethereum address with 0x prefix and 40 hex characters
+                  const randomAddr = `0x${Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+                  handleChange("walletAddress", randomAddr);
+                }}
+              >
+                Generate
+              </Button>
             </div>
             <Input
               id="walletAddress"
               placeholder="Enter ETH wallet address"
-              value={formData.walletAddress || ""}
+              value={formData.walletAddress}
               onChange={(e) => handleChange("walletAddress", e.target.value)}
               onBlur={() => handleBlur("walletAddress")}
               className={
@@ -342,7 +333,7 @@ const EditDialog = ({
               isSubmitting || Object.values(errors).some((error) => error)
             }
           >
-            {isSubmitting ? "Validating..." : "Save Changes"}
+            {isSubmitting ? "Validating..." : "Add Investor"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -350,4 +341,4 @@ const EditDialog = ({
   );
 };
 
-export default EditDialog;
+export default AddInvestorDialog;

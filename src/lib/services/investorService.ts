@@ -24,13 +24,13 @@ export const fetchInvestors = async (): Promise<Investor[]> => {
     }
 
     return data.map((investor) => ({
-      id: investor.id,
+      id: investor.investor_id, // Use investor_id as the id field
       name: investor.name,
       email: investor.email,
       type: investor.type,
       walletAddress: investor.wallet_address,
       kycStatus: investor.kyc_status as Investor["kycStatus"],
-      lastUpdated: investor.last_updated,
+      lastUpdated: investor.lastUpdated, // Changed from last_updated to match the column name in the database
     }));
   } catch (error) {
     console.error("Error in fetchInvestors:", error);
@@ -42,51 +42,60 @@ export const fetchInvestors = async (): Promise<Investor[]> => {
 export const createInvestor = async (
   investor: Omit<Investor, "id">,
 ): Promise<Investor> => {
-  const { data, error } = await supabase
-    .from("investors")
-    .insert({
-      name: investor.name,
-      email: investor.email,
-      type: investor.type,
-      wallet_address: investor.walletAddress,
-      kyc_status: investor.kycStatus,
-      last_updated: investor.lastUpdated,
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("investors")
+      .insert({
+        name: investor.name,
+        email: investor.email,
+        type: investor.type,
+        wallet_address: investor.walletAddress,
+        kyc_status: investor.kycStatus,
+        lastUpdated: investor.lastUpdated, // Changed from last_updated to match the column name in the database
+      })
+      .select()
+      .single();
 
-  if (error) {
-    console.error("Error creating investor:", error);
+    if (error) {
+      console.error("Error creating investor:", error);
+      throw error;
+    }
+
+    return {
+      id: data.investor_id, // Use investor_id instead of id
+      name: data.name,
+      email: data.email,
+      type: data.type,
+      walletAddress: data.wallet_address,
+      kycStatus: data.kyc_status as Investor["kycStatus"],
+      lastUpdated: data.lastUpdated,
+    };
+  } catch (error) {
+    console.error("Error in createInvestor:", error);
     throw error;
   }
-
-  return {
-    id: data.id,
-    name: data.name,
-    email: data.email,
-    type: data.type,
-    walletAddress: data.wallet_address,
-    kycStatus: data.kyc_status as Investor["kycStatus"],
-    lastUpdated: data.last_updated,
-  };
 };
 
 export const updateInvestor = async (
   id: string,
   updates: Partial<Investor>,
 ): Promise<void> => {
+  // Create an update object with only the fields that are provided
+  const updateObj: any = {};
+  if (updates.name !== undefined) updateObj.name = updates.name;
+  if (updates.email !== undefined) updateObj.email = updates.email;
+  if (updates.type !== undefined) updateObj.type = updates.type;
+  if (updates.walletAddress !== undefined)
+    updateObj.wallet_address = updates.walletAddress;
+  if (updates.kycStatus !== undefined) updateObj.kyc_status = updates.kycStatus;
+  if (updates.lastUpdated !== undefined)
+    updateObj.lastUpdated = updates.lastUpdated;
+  else updateObj.lastUpdated = new Date().toISOString().split("T")[0];
+
   const { error } = await supabase
     .from("investors")
-    .update({
-      name: updates.name,
-      email: updates.email,
-      type: updates.type,
-      wallet_address: updates.walletAddress,
-      kyc_status: updates.kycStatus,
-      last_updated:
-        updates.lastUpdated || new Date().toISOString().split("T")[0],
-    })
-    .eq("id", id);
+    .update(updateObj)
+    .eq("investor_id", id);
 
   if (error) {
     console.error("Error updating investor:", error);
@@ -95,7 +104,10 @@ export const updateInvestor = async (
 };
 
 export const deleteInvestor = async (id: string): Promise<void> => {
-  const { error } = await supabase.from("investors").delete().eq("id", id);
+  const { error } = await supabase
+    .from("investors")
+    .delete()
+    .eq("investor_id", id);
 
   if (error) {
     console.error("Error deleting investor:", error);
@@ -107,17 +119,20 @@ export const bulkCreateInvestors = async (
   investors: Omit<Investor, "id">[],
 ): Promise<void> => {
   try {
-    const { error } = await supabase.from("investors").insert(
-      investors.map((investor) => ({
-        name: investor.name,
-        email: investor.email,
-        type: investor.type,
-        wallet_address: investor.walletAddress,
-        kyc_status: investor.kycStatus,
-        last_updated:
-          investor.lastUpdated || new Date().toISOString().split("T")[0],
-      })),
-    );
+    // Ensure all required fields are present and properly formatted
+    const formattedInvestors = investors.map((investor) => ({
+      name: investor.name,
+      email: investor.email,
+      type: investor.type,
+      wallet_address: investor.walletAddress || null, // Make sure null is used for empty values
+      kyc_status: investor.kycStatus || "not_started", // Default to not_started if not provided
+      lastUpdated:
+        investor.lastUpdated || new Date().toISOString().split("T")[0],
+    }));
+
+    const { error } = await supabase
+      .from("investors")
+      .insert(formattedInvestors);
 
     if (error) {
       console.error("Error bulk creating investors:", error);
@@ -135,13 +150,13 @@ const seedSampleData = async (): Promise<void> => {
     // Insert sample investors
     const { error: investorsError } = await supabase.from("investors").insert(
       sampleInvestors.map((investor) => ({
-        id: investor.id,
+        // Don't include id field, let the database generate it
         name: investor.name,
         email: investor.email,
         type: investor.type,
         wallet_address: investor.walletAddress,
         kyc_status: investor.kycStatus,
-        last_updated: investor.lastUpdated,
+        lastUpdated: investor.lastUpdated,
       })),
     );
 
@@ -198,9 +213,40 @@ export const bulkUpdateInvestors = async (
   updates: Partial<Investor>,
 ): Promise<void> => {
   try {
-    // Supabase doesn't support bulk updates directly, so we need to do it one by one
-    const updatePromises = ids.map((id) => updateInvestor(id, updates));
-    await Promise.all(updatePromises);
+    // Create an update object with only the fields that are provided
+    const updateObj: any = {};
+    if (updates.name !== undefined) updateObj.name = updates.name;
+    if (updates.email !== undefined) updateObj.email = updates.email;
+    if (updates.type !== undefined) updateObj.type = updates.type;
+    if (updates.walletAddress !== undefined)
+      updateObj.wallet_address = updates.walletAddress;
+    if (updates.kycStatus !== undefined) {
+      // Ensure kycStatus is one of the allowed enum values
+      const validStatuses = [
+        "approved",
+        "pending",
+        "failed",
+        "not_started",
+        "expired",
+      ];
+      if (!validStatuses.includes(updates.kycStatus)) {
+        throw new Error(
+          `Invalid KYC status: ${updates.kycStatus}. Must be one of: ${validStatuses.join(", ")}`,
+        );
+      }
+      updateObj.kyc_status = updates.kycStatus;
+    }
+    if (updates.lastUpdated !== undefined)
+      updateObj.lastUpdated = updates.lastUpdated;
+    else updateObj.lastUpdated = new Date().toISOString().split("T")[0];
+
+    // Use Supabase's direct update with a filter
+    const { error } = await supabase
+      .from("investors")
+      .update(updateObj)
+      .in("investor_id", ids);
+
+    if (error) throw error;
   } catch (error) {
     console.error("Error in bulkUpdateInvestors:", error);
     throw error;
@@ -208,7 +254,10 @@ export const bulkUpdateInvestors = async (
 };
 
 export const bulkDeleteInvestors = async (ids: string[]): Promise<void> => {
-  const { error } = await supabase.from("investors").delete().in("id", ids);
+  const { error } = await supabase
+    .from("investors")
+    .delete()
+    .in("investor_id", ids);
 
   if (error) {
     console.error("Error bulk deleting investors:", error);

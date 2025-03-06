@@ -52,6 +52,7 @@ interface InvestorGridProps {
     dateRange: { from: Date | undefined; to: Date | undefined },
   ) => void;
   onViewInvestor?: (investorId: string) => void;
+  setShowAddToGroupDialog?: (show: boolean) => void;
 }
 
 import { sampleInvestors } from "@/lib/sampleData";
@@ -72,6 +73,7 @@ const InvestorGrid = ({
   onFilterByStatus = () => {},
   onFilterByDateRange = () => {},
   onViewInvestor = () => {},
+  setShowAddToGroupDialog = () => {},
 }: InvestorGridProps) => {
   const [selectedRows, setSelectedRows] = React.useState<Set<string>>(
     new Set(),
@@ -80,7 +82,7 @@ const InvestorGrid = ({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [filters, setFilters] = React.useState<Record<string, string[]>>({});
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(10);
+  const [pageSize, setPageSize] = React.useState(100);
 
   const handleSort = (key: string) => {
     setSortConfig((currentSort) => {
@@ -116,12 +118,11 @@ const InvestorGrid = ({
   }, [processedData, currentPage, pageSize]);
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedRows(new Set(paginatedData.map((i) => i.id)));
-    } else {
-      setSelectedRows(new Set());
-    }
-    onSelectionChange(Array.from(selectedRows));
+    const newSelection = checked
+      ? new Set(paginatedData.map((i) => i.id))
+      : new Set();
+    setSelectedRows(newSelection);
+    onSelectionChange(Array.from(newSelection));
   };
 
   const handleSelectRow = (id: string, checked: boolean) => {
@@ -134,6 +135,8 @@ const InvestorGrid = ({
     setSelectedRows(newSelection);
     onSelectionChange(Array.from(newSelection));
   };
+
+  // We don't need this useEffect as we're already calling onSelectionChange in the handlers
 
   const handleFilterByStatus = (statusIds: string[]) => {
     setFilters((prev) => ({ ...prev, kycStatus: statusIds }));
@@ -151,6 +154,7 @@ const InvestorGrid = ({
         onFilterByStatus={handleFilterByStatus}
         onFilterByDateRange={onFilterByDateRange}
         selectedCount={selectedRows.size}
+        setShowAddToGroupDialog={setShowAddToGroupDialog}
       />
       <div className="flex-1 overflow-auto">
         <Table>
@@ -303,10 +307,10 @@ const InvestorGrid = ({
               setCurrentPage(1); // Reset to first page when changing page size
             }}
           >
-            <option value="5">5</option>
             <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
+            <option value="100">100</option>
           </select>
         </div>
 

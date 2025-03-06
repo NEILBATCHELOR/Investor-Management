@@ -8,6 +8,7 @@ import {
   Edit,
   ChevronDown,
   Calendar,
+  Users,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 interface GridToolbarProps {
+  setShowAddToGroupDialog?: (show: boolean) => void;
   onSearch?: (query: string) => void;
   onFilter?: () => void;
   onBulkEdit?: () => void;
@@ -48,6 +50,7 @@ interface GridToolbarProps {
 }
 
 const GridToolbar = ({
+  setShowAddToGroupDialog = () => {},
   onSearch = () => {},
   onFilter = () => {},
   onBulkEdit = () => {},
@@ -244,6 +247,19 @@ const GridToolbar = ({
             >
               <Edit className="h-4 w-4" />
               Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (selectedCount > 0) {
+                  setShowAddToGroupDialog(true);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Manage Groups
             </Button>
             <Button
               variant="outline"

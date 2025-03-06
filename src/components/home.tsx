@@ -5,12 +5,14 @@ import ImportDialog from "./dashboard/ImportDialog";
 import ExportDialog from "./dashboard/ExportDialog";
 import ConfirmDialog from "./dashboard/ConfirmDialog";
 import EditDialog from "./dashboard/EditDialog";
+import AddInvestorDialog from "./dashboard/AddInvestorDialog";
 import ScreeningDialog from "./dashboard/ScreeningDialog";
 import BatchScreeningDialog from "./dashboard/BatchScreeningDialog";
 import InvestorGroups, { InvestorGroup } from "./dashboard/InvestorGroups";
 import GroupDialog from "./dashboard/GroupDialog";
 import InvestorDetail from "./dashboard/InvestorDetail";
 import RemoveFromGroupDialog from "./dashboard/RemoveFromGroupDialog";
+import ManageGroupsDialog from "./dashboard/ManageGroupsDialog";
 import CapTableVisualization from "./dashboard/CapTableVisualization";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { ErrorDetails, createErrorDetails } from "@/lib/types/errorTypes";
@@ -35,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { BarChart } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 interface HomeProps {
   onImportComplete?: (data: any) => void;
@@ -53,12 +56,15 @@ const Home = ({
     React.useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [showAddInvestorDialog, setShowAddInvestorDialog] =
+    React.useState(false);
   const [showScreeningDialog, setShowScreeningDialog] = React.useState(false);
   const [showBatchScreeningDialog, setShowBatchScreeningDialog] =
     React.useState(false);
   const [showInvestorDetailDialog, setShowInvestorDetailDialog] =
     React.useState(false);
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
+  const [showAddToGroupDialog, setShowAddToGroupDialog] = React.useState(false);
   const [selectedInvestorForScreening, setSelectedInvestorForScreening] =
     React.useState<string | null>(null);
   const [selectedInvestorForDetail, setSelectedInvestorForDetail] =
@@ -143,6 +149,8 @@ const Home = ({
     loadGroups();
   }, []);
 
+  // No need for event listener anymore, we'll pass the setter directly to GridToolbar
+
   const handleImportClick = () => {
     setShowImportDialog(true);
   };
@@ -150,18 +158,27 @@ const Home = ({
   const handleExportClick = (type: string) => {
     if (type === "cap-table") {
       if (selectedInvestors.length > 0) {
-        setShowConfirmDialog(true);
+        // Export selected investors directly
+        handleExport("selected-investors", "csv");
       } else {
-        console.log("Please select investors first");
+        // Show a message that no investors are selected
+        const errorDetails = createErrorDetails(
+          new Error("No investors selected"),
+        );
+        errorDetails.message = "No investors selected";
+        errorDetails.details = "Please select at least one investor to export.";
+        errorDetails.type = "validation";
+        setError(errorDetails);
       }
     } else {
-      setShowExportDialog(true);
+      // Export all investors directly
+      handleExport("all-investors", "csv");
     }
   };
 
   const handleExport = (type: string, format: string) => {
     const dataToExport =
-      type === "cap-table"
+      type === "selected-investors"
         ? investors.filter((inv) => selectedInvestors.includes(inv.id))
         : investors;
 
@@ -360,6 +377,22 @@ const Home = ({
       const currentDate = new Date().toISOString().split("T")[0];
       const updatedData = { ...data, lastUpdated: currentDate };
 
+      // Validate KYC status if it's being updated
+      if (updatedData.kycStatus) {
+        const validStatuses = [
+          "approved",
+          "pending",
+          "failed",
+          "not_started",
+          "expired",
+        ];
+        if (!validStatuses.includes(updatedData.kycStatus)) {
+          throw new Error(
+            `Invalid KYC status: ${updatedData.kycStatus}. Must be one of: ${validStatuses.join(", ")}`,
+          );
+        }
+      }
+
       await bulkUpdateInvestors(selectedInvestors, updatedData);
 
       setInvestors((prev) =>
@@ -464,6 +497,7 @@ const Home = ({
             onViewCapTable={() => setShowCapTableVisualization(true)}
             onCreateGroupClick={() => setShowCreateDialog(true)}
             onBatchScreeningClick={() => setShowBatchScreeningDialog(true)}
+            onAddInvestorClick={() => setShowAddInvestorDialog(true)}
           />
 
           <main className="flex-1 container mx-auto px-6 py-8">
@@ -503,6 +537,7 @@ const Home = ({
                     setSelectedInvestorForDetail(investorId);
                     setShowInvestorDetailDialog(true);
                   }}
+                  setShowAddToGroupDialog={setShowAddToGroupDialog}
                 />
               </div>
             </div>
@@ -518,6 +553,51 @@ const Home = ({
             open={showExportDialog}
             onOpenChange={setShowExportDialog}
             onExport={handleExport}
+          />
+
+          <AddInvestorDialog
+            open={showAddInvestorDialog}
+            onOpenChange={setShowAddInvestorDialog}
+            onSave={async (investorData) => {
+              try {
+                console.log(
+                  "Attempting to create investor with data:",
+                  investorData,
+                );
+
+                // Format the data correctly for the database
+                const insertData = {
+                  name: investorData.name,
+                  email: investorData.email,
+                  type: investorData.type,
+                  wallet_address: investorData.walletAddress,
+                  kyc_status: investorData.kycStatus,
+                  lastUpdated: investorData.lastUpdated,
+                  verification_details: {},
+                };
+
+                console.log("Formatted data for insertion:", insertData);
+
+                const { data, error } = await supabase
+                  .from("investors")
+                  .insert(insertData);
+
+                if (error) {
+                  console.error("Database error adding investor:", error);
+                  throw error;
+                }
+
+                console.log("Successfully added investor:", data);
+                await loadInvestors();
+                setShowAddInvestorDialog(false);
+              } catch (error) {
+                console.error("Error adding investor:", error);
+                const errorDetails = createErrorDetails(error);
+                errorDetails.message = "Failed to add investor";
+                errorDetails.details = `Database error: ${error.message || "Unknown error"}`;
+                setError(errorDetails);
+              }
+            }}
           />
 
           <ConfirmDialog
@@ -686,6 +766,13 @@ const Home = ({
                     ?.name || ""
                 : ""
             }
+            investor={
+              selectedInvestorForScreening
+                ? investors.find(
+                    (i) => i.id === selectedInvestorForScreening,
+                  ) || null
+                : null
+            }
           />
 
           <BatchScreeningDialog
@@ -802,6 +889,17 @@ const Home = ({
               }}
             />
           )}
+
+          {/* Manage Groups Dialog */}
+          <ManageGroupsDialog
+            open={showAddToGroupDialog}
+            onOpenChange={setShowAddToGroupDialog}
+            groups={groups}
+            selectedInvestorIds={selectedInvestors}
+            onAddToGroup={handleAddToGroup}
+            onRemoveFromGroup={handleRemoveFromGroup}
+            onCreateGroup={handleCreateGroup}
+          />
 
           {/* Cap Table Visualization Dialog */}
           <Dialog

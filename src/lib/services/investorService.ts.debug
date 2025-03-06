@@ -1,0 +1,65 @@
+// Debugging version of createInvestor function
+import { supabase } from "../supabase";
+import { Investor } from "@/components/dashboard/InvestorGrid";
+
+export const createInvestorDebug = async (
+  investor: Omit<Investor, "id">
+): Promise<{ success: boolean; error?: any; data?: any }> => {
+  try {
+    console.log("Creating investor with data:", investor);
+    
+    // Log the database structure
+    const { data: tableInfo, error: tableError } = await supabase
+      .from('investors')
+      .select('*')
+      .limit(1);
+      
+    if (tableError) {
+      console.error("Error checking table structure:", tableError);
+      return { success: false, error: tableError };
+    }
+    
+    console.log("Table structure sample:", tableInfo);
+    
+    // Prepare the data for insertion
+    const insertData = {
+      name: investor.name,
+      email: investor.email,
+      type: investor.type,
+      wallet_address: investor.walletAddress,
+      kyc_status: investor.kycStatus,
+      "lastUpdated": investor.lastUpdated
+    };
+    
+    console.log("Formatted data for insertion:", insertData);
+
+    // Attempt to insert the data
+    const { data, error } = await supabase
+      .from("investors")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating investor:", error);
+      return { success: false, error };
+    }
+
+    console.log("Successfully created investor:", data);
+    return { 
+      success: true, 
+      data: {
+        id: data.investor_id,
+        name: data.name,
+        email: data.email,
+        type: data.type,
+        walletAddress: data.wallet_address,
+        kycStatus: data.kyc_status,
+        lastUpdated: data.lastUpdated
+      }
+    };
+  } catch (error) {
+    console.error("Exception in createInvestor:", error);
+    return { success: false, error };
+  }
+}
