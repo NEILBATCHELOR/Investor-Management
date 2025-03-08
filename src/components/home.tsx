@@ -500,9 +500,9 @@ const Home = ({
             onAddInvestorClick={() => setShowAddInvestorDialog(true)}
           />
 
-          <main className="flex-1 container mx-auto px-6 py-8">
+          <main className="flex-1 container mx-auto px-4 py-8 max-w-[1600px]">
             <div className="flex gap-6">
-              <div className="w-64 flex-shrink-0">
+              <div className="w-48 flex-shrink-0">
                 <InvestorGroups
                   groups={groups}
                   selectedGroupId={selectedGroupId}
